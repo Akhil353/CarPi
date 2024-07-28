@@ -14,7 +14,7 @@ GPIO.output(LED_PIN, True)
 
 # Keep the script running indefinitely
 try:
-    while True:
+    while True: 
         pass  # Do nothing, just keep the LED on
 except KeyboardInterrupt:
     # Clean up GPIO settings before exiting
