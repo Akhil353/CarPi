@@ -2,7 +2,7 @@ import RPi.GPIO as GPIO
 
 # Set the GPIO mode
 GPIO.setmode(GPIO.BOARD)
-
+# 
 # Set the GPIO pin number for the LED
 LED_PIN = 7
 
