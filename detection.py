@@ -2,7 +2,7 @@ import cv2
 import time
 import subprocess
 import os
-from model import NeuralNetwork
+from ultralytics import YOLOv10
 
 
 while True:
