@@ -1,21 +1,32 @@
 import RPi.GPIO as GPIO
+import time
 
-# Set the GPIO mode
-GPIO.setmode(GPIO.BOARD)
-# 
-# Set the GPIO pin number for the LED
-LED_PIN = 7
+# Set GPIO numbering mode
+GPIO.setmode(GPIO.BCM)
 
-# Set up the LED pin as an output
-GPIO.setup(LED_PIN, GPIO.OUT)
+# Define GPIO pins
+IN1 = 17  # GPIO 17 (LED 1)
+IN2 = 27  # GPIO 27 (LED 2)
 
-# Turn on the LED (set GPIO 17 to HIGH)
-GPIO.output(LED_PIN, True)
+# Set GPIO pins as outputs
+GPIO.setup(IN1, GPIO.OUT)
+GPIO.setup(IN2, GPIO.OUT)
 
-# Keep the script running indefinitely
 try:
-    while True: 
-        pass  # Do nothing, just keep the LED on
+    while True:
+        # LED 1 on (Motor supposed to be forward)
+        GPIO.output(IN1, GPIO.HIGH)
+        GPIO.output(IN2, GPIO.LOW)
+        time.sleep(5)
+
+        # LED 2 on (Motor supposed to be backward)
+        GPIO.output(IN1, GPIO.LOW)
+        GPIO.output(IN2, GPIO.HIGH)
+        time.sleep(5)
+        
+
 except KeyboardInterrupt:
-    # Clean up GPIO settings before exiting
-    GPIO.cleanup()
+    pass
+
+# Cleanup
+GPIO.cleanup()
