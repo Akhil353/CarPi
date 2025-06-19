@@ -2,7 +2,7 @@ import cv2
 
 from ultralytics import YOLO, solutions
 
-model = YOLO("yolov8n.pt")
+model = YOLO("yolov12m.pt")
 names = model.model.names
 
 cap = cv2.VideoCapture(0)

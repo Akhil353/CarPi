@@ -1,8 +1,8 @@
 import torch
 import cv2
 
-# Load YOLOv5 model
-model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)
+# Load YOLOv12 model
+model = torch.hub.load('ultralytics/yolov12', 'yolov12m', pretrained=True)
 cap = cv2.VideoCapture(0)  # 0 is the default camera
 while True:
     ret, frame = cap.read()
@@ -16,7 +16,7 @@ while True:
     frame = results.render()[0]
 
     # Display the frame
-    cv2.imshow('YOLOv5', frame)
+    cv2.imshow('YOLOv12', frame)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
