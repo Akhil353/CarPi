@@ -3,11 +3,20 @@ from ultralytics import YOLO
 from CameraCalibrator import CameraCalibrator
 
 # Initialize YOLO and Calibrator
-yolo = YOLO("yolo12s.pt")  # Replace with "yolov8n.pt" or similar if needed
+yolo = YOLO("yolo12s.pt")  # Replace with your model path
 calibrator = CameraCalibrator()
 
 # Open webcam
 cap = cv2.VideoCapture(0)
+
+# Label mapping for better readability
+LABELS = [
+    "RGB Mean R", "RGB Mean G", "RGB Mean B",
+    "RGB Std R", "RGB Std G", "RGB Std B",
+    "Brightness", "Contrast", "Focus (Laplacian)",
+    "Tenengrad", "FFT Blur", "Entropy",
+    "Edge Magnitude", "Gamma", "Skew"
+]
 
 while True:
     ret, frame = cap.read()
@@ -28,18 +37,36 @@ while True:
             "confidence": conf,
             "class": cls
         })
-        # Draw box
+        # Draw detection box
         cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (255, 255, 255), 2)
 
-    # Run camera condition prediction
-    condition_vec = calibrator.predict(frame, detections)
+    # Run calibration check
+    results = calibrator.predict(frame, detections)
+    prediction = results["prediction"]
+    tint_hex = results["tint_hex"]
+    blindspots = results["blind_grid_coords"]
 
-    # Display condition values on screen
-    for i, val in enumerate(condition_vec[:15]):  # Display first 15 for space
-        cv2.putText(frame, f"{i}: {val:.2f}", (10, 25 + i * 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
+    # Display first 15 interpreted prediction values
+    for i, label in enumerate(LABELS):
+        val = prediction[i]
+        cv2.putText(frame, f"{label}: {val:.2f}", (10, 25 + i * 20),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
+
+    # Display tint color
+    cv2.putText(frame, f"Approx Tint: {tint_hex}", (10, 350),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (int(results['avg_rgb'][2]), int(results['avg_rgb'][1]), int(results['avg_rgb'][0])), 2)
+
+    # Highlight blind grid cells
+    h, w, _ = frame.shape
+    grid_size = 6
+    gh, gw = h // grid_size, w // grid_size
+    for i, j in blindspots:
+        x1, y1 = j * gw, i * gh
+        x2, y2 = x1 + gw, y1 + gh
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+        cv2.putText(frame, "Blind", (x1 + 5, y1 + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 
     cv2.imshow("Camera Tester", frame)
-
     if cv2.waitKey(1) & 0xFF == ord("q"):
         break
 
