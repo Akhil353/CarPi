@@ -10,12 +10,11 @@ class WeatherClassifier(nn.Module):
     def __init__(self, num_classes=9):
         super().__init__()
         self.backbone = resnet18(pretrained=True)
+        # Simplified classifier head - reduced complexity
         self.backbone.fc = nn.Sequential(
-            nn.Linear(512, 256),
+            nn.Linear(512, 128),
             nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(256, 128),
-            nn.ReLU(),
+            nn.Dropout(0.2),
             nn.Linear(128, num_classes)
         )
         
@@ -25,10 +24,11 @@ class WeatherClassifier(nn.Module):
 class ImageEnhancementNN(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(3, 64, 3, padding=1)
-        self.conv2 = nn.Conv2d(64, 64, 3, padding=1)
-        self.conv3 = nn.Conv2d(64, 32, 3, padding=1)
-        self.conv4 = nn.Conv2d(32, 3, 3, padding=1)
+        # Reduced channel complexity for faster processing
+        self.conv1 = nn.Conv2d(3, 32, 3, padding=1)
+        self.conv2 = nn.Conv2d(32, 32, 3, padding=1)
+        self.conv3 = nn.Conv2d(32, 16, 3, padding=1)
+        self.conv4 = nn.Conv2d(16, 3, 3, padding=1)
         self.relu = nn.ReLU()
         
     def forward(self, x):
@@ -46,46 +46,42 @@ class WeatherSensor:
         self.weather_classifier = WeatherClassifier(len(self.weather_classes)).to(device)
         self.enhancer = ImageEnhancementNN().to(device)
         
+        # Smaller input size for faster processing
         self.transform = T.Compose([
             T.ToPILImage(),
-            T.Resize((224, 224)),
+            T.Resize((160, 160)),  # Reduced from 224x224
             T.ToTensor(),
             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
         
         self.weather_history = []
-        self.history_length = 10
+        self.history_length = 5  # Reduced history length
+        self.frame_skip = 0  # For processing every nth frame
         
     def extract_weather_features(self, frame):
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        # Downsample for faster feature extraction
+        small_frame = cv2.resize(frame, (160, 120))
+        gray = cv2.cvtColor(small_frame, cv2.COLOR_BGR2GRAY)
         
         brightness = np.mean(gray)
         contrast = gray.std()
         
+        # Simplified edge detection
         edges = cv2.Canny(gray, 50, 150)
         edge_density = np.sum(edges > 0) / edges.size
         
+        # Basic blur detection
         lap_var = cv2.Laplacian(gray, cv2.CV_64F).var()
         
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        saturation_mean = np.mean(hsv[:, :, 1])
-        
-        hist = cv2.calcHist([gray], [0], None, [256], [0, 256])
-        hist_entropy = -np.sum((hist + 1e-8) * np.log2(hist + 1e-8))
-        
-        blur_score = cv2.Laplacian(gray, cv2.CV_64F).var()
-        
-        rgb_mean = frame.mean(axis=(0, 1))
-        rgb_std = frame.std(axis=(0, 1))
-        
-        features = np.array([
-            brightness, contrast, edge_density, lap_var, saturation_mean,
-            hist_entropy, blur_score, *rgb_mean, *rgb_std
-        ])
-        
+        features = np.array([brightness, contrast, edge_density, lap_var])
         return features
 
     def classify_weather(self, frame):
+        # Skip classification every few frames for speed
+        self.frame_skip += 1
+        if self.frame_skip % 3 != 0 and len(self.weather_history) > 0:
+            return self.weather_history[-1], 0.8
+        
         input_tensor = self.transform(frame).unsqueeze(0).to(self.device)
         
         with torch.no_grad():
@@ -96,194 +92,117 @@ class WeatherSensor:
         
         weather_condition = self.weather_classes[pred_idx]
         
+        # Simplified feature-based corrections
         features = self.extract_weather_features(frame)
         
-        if features[0] < 50 and features[1] < 30:
+        if features[0] < 50:  # Low brightness
             weather_condition = 'lowlight'
-        elif features[2] < 0.1 and features[3] < 100:
+        elif features[2] < 0.1 and features[3] < 100:  # Low edges + low variance
             weather_condition = 'foggy'
-        elif features[1] < 20 and features[6] < 500:
-            weather_condition = 'misty'
         
         self.weather_history.append(weather_condition)
         if len(self.weather_history) > self.history_length:
             self.weather_history.pop(0)
         
-        stable_weather = max(set(self.weather_history), key=self.weather_history.count)
+        # Use most recent instead of most common for speed
+        stable_weather = self.weather_history[-1] if self.weather_history else weather_condition
         
         return stable_weather, confidence
 
     def correct_sunny_conditions(self, frame):
+        # Simplified sunny correction
+        gamma = 0.8
+        table = np.array([((i / 255.0) ** gamma) * 255 for i in np.arange(0, 256)]).astype("uint8")
+        return cv2.LUT(frame, table)
+
+    def correct_cloudy_conditions(self, frame):
+        # Simple brightness/contrast adjustment
+        return cv2.convertScaleAbs(frame, alpha=1.2, beta=20)
+
+    def correct_foggy_conditions(self, frame):
+        # Simplified dehazing using histogram equalization
         lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
         l, a, b = cv2.split(lab)
         
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-        l = clahe.apply(l)
+        # Use regular histogram equalization instead of CLAHE for speed
+        l = cv2.equalizeHist(l)
         
-        corrected = cv2.merge([l, a, b])
-        corrected = cv2.cvtColor(corrected, cv2.COLOR_LAB2BGR)
-        
-        gamma = 0.8
-        table = np.array([((i / 255.0) ** gamma) * 255 for i in np.arange(0, 256)]).astype("uint8")
-        corrected = cv2.LUT(corrected, table)
-        
-        return corrected
-
-    def correct_cloudy_conditions(self, frame):
-        alpha = 1.2
-        beta = 20
-        enhanced = cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
-        
-        lab = cv2.cvtColor(enhanced, cv2.COLOR_BGR2LAB)
-        l, a, b = cv2.split(lab)
-        
-        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
-        l = clahe.apply(l)
-        
-        enhanced = cv2.merge([l, a, b])
-        enhanced = cv2.cvtColor(enhanced, cv2.COLOR_LAB2BGR)
-        
-        return enhanced
-
-    def correct_foggy_conditions(self, frame):
-        frame_float = frame.astype(np.float32) / 255.0
-        
-        dark_channel = np.min(frame_float, axis=2)
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
-        dark_channel = cv2.morphologyEx(dark_channel, cv2.MORPH_CLOSE, kernel)
-        
-        A = np.max(frame_float)
-        t = 1 - 0.95 * dark_channel / A
-        t = np.maximum(t, 0.1)
-        
-        t = t[:, :, np.newaxis]
-        dehazed = (frame_float - A) / t + A
-        dehazed = np.clip(dehazed, 0, 1)
-        
-        result = (dehazed * 255).astype(np.uint8)
-        
-        lab = cv2.cvtColor(result, cv2.COLOR_BGR2LAB)
-        l, a, b = cv2.split(lab)
-        clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(8, 8))
-        l = clahe.apply(l)
         result = cv2.merge([l, a, b])
         result = cv2.cvtColor(result, cv2.COLOR_LAB2BGR)
         
-        return result
+        # Simple contrast enhancement
+        return cv2.convertScaleAbs(result, alpha=1.3, beta=10)
 
     def correct_misty_conditions(self, frame):
-        alpha = 1.3
-        beta = 30
-        enhanced = cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
-        
-        blurred = cv2.GaussianBlur(enhanced, (0, 0), 1.5)
-        sharpened = cv2.addWeighted(enhanced, 1.5, blurred, -0.7, 0)
-        
-        lab = cv2.cvtColor(sharpened, cv2.COLOR_BGR2LAB)
-        l, a, b = cv2.split(lab)
-        clahe = cv2.createCLAHE(clipLimit=3.5, tileGridSize=(8, 8))
-        l = clahe.apply(l)
-        result = cv2.merge([l, a, b])
-        result = cv2.cvtColor(result, cv2.COLOR_LAB2BGR)
-        
-        return result
+        # Simple sharpening without heavy processing
+        kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]])
+        return cv2.filter2D(frame, -1, kernel)
 
     def correct_rainy_conditions(self, frame):
-        alpha = 1.4
-        beta = 25
-        enhanced = cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
-        
-        lab = cv2.cvtColor(enhanced, cv2.COLOR_BGR2LAB)
-        l, a, b = cv2.split(lab)
-        clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(8, 8))
-        l = clahe.apply(l)
-        enhanced = cv2.merge([l, a, b])
-        enhanced = cv2.cvtColor(enhanced, cv2.COLOR_LAB2BGR)
+        # Simple contrast and saturation boost
+        enhanced = cv2.convertScaleAbs(frame, alpha=1.3, beta=15)
         
         hsv = cv2.cvtColor(enhanced, cv2.COLOR_BGR2HSV)
-        hsv[:, :, 1] = cv2.multiply(hsv[:, :, 1], 1.2)
-        enhanced = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
-        
-        return enhanced
+        hsv[:, :, 1] = cv2.multiply(hsv[:, :, 1], 1.1)
+        return cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
 
     def correct_stormy_conditions(self, frame):
-        alpha = 1.6
-        beta = 40
-        enhanced = cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
-        
-        lab = cv2.cvtColor(enhanced, cv2.COLOR_BGR2LAB)
-        l, a, b = cv2.split(lab)
-        clahe = cv2.createCLAHE(clipLimit=5.0, tileGridSize=(6, 6))
-        l = clahe.apply(l)
-        enhanced = cv2.merge([l, a, b])
-        enhanced = cv2.cvtColor(enhanced, cv2.COLOR_LAB2BGR)
-        
-        blurred = cv2.GaussianBlur(enhanced, (0, 0), 2.0)
-        sharpened = cv2.addWeighted(enhanced, 2.0, blurred, -1.0, 0)
-        
-        return sharpened
+        # Strong contrast enhancement
+        return cv2.convertScaleAbs(frame, alpha=1.5, beta=30)
 
     def correct_snowy_conditions(self, frame):
+        # Gamma correction for snow
         gamma = 0.7
         table = np.array([((i / 255.0) ** gamma) * 255 for i in np.arange(0, 256)]).astype("uint8")
-        corrected = cv2.LUT(frame, table)
-        
-        lab = cv2.cvtColor(corrected, cv2.COLOR_BGR2LAB)
-        l, a, b = cv2.split(lab)
-        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
-        l = clahe.apply(l)
-        corrected = cv2.merge([l, a, b])
-        corrected = cv2.cvtColor(corrected, cv2.COLOR_LAB2BGR)
-        
-        alpha = 1.3
-        beta = -20
-        corrected = cv2.convertScaleAbs(corrected, alpha=alpha, beta=beta)
-        
-        return corrected
+        return cv2.LUT(frame, table)
 
     def correct_lowlight_conditions(self, frame):
-        gamma = 0.4
+        # Improved low light correction without heavy denoising
+        
+        # Gamma correction for brightness
+        gamma = 0.5
         table = np.array([((i / 255.0) ** gamma) * 255 for i in np.arange(0, 256)]).astype("uint8")
         brightened = cv2.LUT(frame, table)
         
+        # Light CLAHE application
         lab = cv2.cvtColor(brightened, cv2.COLOR_BGR2LAB)
         l, a, b = cv2.split(lab)
-        clahe = cv2.createCLAHE(clipLimit=6.0, tileGridSize=(8, 8))
+        
+        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
         l = clahe.apply(l)
+        
         enhanced = cv2.merge([l, a, b])
         enhanced = cv2.cvtColor(enhanced, cv2.COLOR_LAB2BGR)
         
-        denoised = cv2.fastNlMeansDenoisingColored(enhanced, None, 10, 10, 7, 21)
+        # Light bilateral filter instead of heavy denoising
+        # This preserves edges better and is much faster
+        denoised = cv2.bilateralFilter(enhanced, 5, 50, 50)
         
-        alpha = 1.5
-        beta = 30
-        final = cv2.convertScaleAbs(denoised, alpha=alpha, beta=beta)
+        # Final contrast adjustment
+        final = cv2.convertScaleAbs(denoised, alpha=1.2, beta=15)
         
         return final
 
     def correct_dusty_conditions(self, frame):
-        alpha = 1.3
-        beta = 20
-        enhanced = cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
-        
-        lab = cv2.cvtColor(enhanced, cv2.COLOR_BGR2LAB)
-        l, a, b = cv2.split(lab)
-        clahe = cv2.createCLAHE(clipLimit=4.5, tileGridSize=(8, 8))
-        l = clahe.apply(l)
-        enhanced = cv2.merge([l, a, b])
-        enhanced = cv2.cvtColor(enhanced, cv2.COLOR_LAB2BGR)
-        
-        hsv = cv2.cvtColor(enhanced, cv2.COLOR_BGR2HSV)
-        hsv[:, :, 1] = cv2.multiply(hsv[:, :, 1], 1.4)
+        # Enhanced saturation and sharpening
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        hsv[:, :, 1] = cv2.multiply(hsv[:, :, 1], 1.3)
         enhanced = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
         
-        blurred = cv2.GaussianBlur(enhanced, (0, 0), 1.0)
-        sharpened = cv2.addWeighted(enhanced, 1.8, blurred, -0.8, 0)
-        
-        return sharpened
+        # Simple sharpening
+        kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]])
+        return cv2.filter2D(enhanced, -1, kernel)
 
     def neural_enhancement(self, frame):
-        frame_tensor = torch.from_numpy(frame.transpose(2, 0, 1)).float() / 255.0
+        # Skip neural enhancement every few frames for speed
+        if self.frame_skip % 2 != 0:
+            return frame
+            
+        # Resize for faster neural processing
+        h, w = frame.shape[:2]
+        small_frame = cv2.resize(frame, (w//2, h//2))
+        
+        frame_tensor = torch.from_numpy(small_frame.transpose(2, 0, 1)).float() / 255.0
         frame_tensor = frame_tensor.unsqueeze(0).to(self.device)
         
         with torch.no_grad():
@@ -291,6 +210,8 @@ class WeatherSensor:
             enhanced = enhanced.squeeze(0).cpu().numpy().transpose(1, 2, 0)
             enhanced = (enhanced * 255).astype(np.uint8)
         
+        # Resize back to original size
+        enhanced = cv2.resize(enhanced, (w, h))
         return enhanced
 
     def apply_corrections(self, frame, weather_condition):
@@ -311,6 +232,7 @@ class WeatherSensor:
         else:
             corrected = frame
         
+        # Apply neural enhancement less frequently
         final_enhanced = self.neural_enhancement(corrected)
         
         return final_enhanced
@@ -322,8 +244,15 @@ class WeatherSensor:
         return corrected_frame, weather_condition, confidence
 
 def main():
-    weather_sensor = WeatherSensor()
+    # Use GPU if available for better performance
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    weather_sensor = WeatherSensor(device=device)
+    
     cap = cv2.VideoCapture(0)
+    
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    cap.set(cv2.CAP_PROP_FPS, 30)
     
     while True:
         ret, frame = cap.read()
