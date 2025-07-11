@@ -54,22 +54,37 @@ class BlurDetector:
         if region.size == 0:
             return None, None
 
+        # Metrics
         lap_var = cv2.Laplacian(region, cv2.CV_64F).var()
         brightness = np.mean(region)
         contrast = np.std(region)
-        edges = cv2.Canny(region, 50, 150)
+        edges = cv2.Canny(region, 100, 200)
         edge_density = np.sum(edges > 0) / (region.size + 1e-5)
 
-        # ✅ Smart thresholds based on actual observation
-        if lap_var > 100 or edge_density > 0.05 or contrast > 30:
-            return lap_var, None  # NOT a blindspot
+        # ────── NEW: Only trigger if *all* are bad ──────
+        is_blurry = lap_var < self.blur_thresh
+        is_low_contrast = contrast < self.contrast_thresh
+        is_low_edges = edge_density < self.edge_thresh
+        is_very_dark = brightness < self.brightness_thresh
 
-        cause = "flat"
+        cause = None
+
+        if is_blurry and (is_low_contrast or is_low_edges):
+            if is_very_dark:
+                cause = "low_light"
+            elif is_low_edges:
+                cause = "low_edges"
+            elif is_low_contrast:
+                cause = "low_contrast"
+            else:
+                cause = "flat"
+
         return lap_var, cause
 
 
 
-    def detect_blindspots(self, frame):
+
+    def detect_blindspots(self, frame, model=None, transform=None, threshold_blur=60):
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         h, w = gray.shape
         boxes = []
@@ -80,16 +95,43 @@ class BlurDetector:
             for x in range(0, w, step_x):
                 x_end = min(x + step_x, w)
                 y_end = min(y + step_y, h)
-                mask = np.s_[y:y_end, x:x_end]
-                lap_var, cause = self.analyze_region(gray, mask)
-                if cause:
+                region = gray[y:y_end, x:x_end]
+                color_region = frame[y:y_end, x:x_end]
+
+                # 1. Calculate Laplacian variance
+                lap_var = cv2.Laplacian(region, cv2.CV_64F).var()
+                brightness = np.mean(region)
+                contrast = np.std(region)
+                edges = cv2.Canny(region, 100, 200)
+                edge_density = np.sum(edges > 0) / (region.size + 1e-5)
+
+                # 2. Check model confusion (optional)
+                model_confused = False
+                if model and transform:
+                    try:
+                        patch_tensor = transform(color_region).unsqueeze(0).to(next(model.parameters()).device)
+                        with torch.no_grad():
+                            out = model(patch_tensor)
+                            probs = torch.softmax(out, dim=1)
+                            max_conf = probs.max().item()
+                        model_confused = max_conf < 0.5
+                    except:
+                        pass
+
+                # 3. Combine all criteria
+                blurry = lap_var < threshold_blur and edge_density < self.edge_thresh and contrast < self.contrast_thresh
+
+                if blurry and model_confused:
                     boxes.append({
                         "bbox": (x, y, x_end, y_end),
-                        "cause": cause,
-                        "lap_var": lap_var
+                        "cause": f"blurry+confused",
+                        "lap_var": round(lap_var, 2),
+                        "contrast": round(contrast, 2),
+                        "edge_density": round(edge_density, 4)
                     })
 
         return boxes
+
 
 # ─────────────────────────────────────────────────────────────
 # DRIFT LOGGER
@@ -103,10 +145,20 @@ class DriftLogger:
         self.last_log_time = 0
         self.history = deque(maxlen=max_history)
 
-    def log(self, image, distance, blindspots):
+    def log(self, image, distance, blindspots, feature=None):
         now = time.time()
         if now - self.last_log_time < self.cooldown:
             return False
+
+        # Compare with last image in history
+        if self.history:
+            last = self.history[-1]
+            last_img = cv2.imread(last["img_path"])
+            if last_img is not None:
+                diff = np.mean(cv2.absdiff(last_img, image))
+                if diff < 10:
+                    print("⚠️ Skipped log: too visually similar to previous.")
+                    return False
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename_base = f"drift_{timestamp}_d{distance:.2f}"
@@ -126,12 +178,13 @@ class DriftLogger:
         self.history.append({
             "img_path": str(img_path),
             "meta_path": str(meta_path),
-            "features": None
+            "features": feature.cpu() if feature is not None else None
         })
 
         self.last_log_time = now
         print(f"⚠️ Logged drift to {img_path.name} with {len(blindspots)} blindspots.")
         return True
+
 
     def get_recent_logs(self):
         return list(self.history)
@@ -227,17 +280,27 @@ class CameraMonitor:
             features = self.model.extract_features(img_tensor)
 
         is_drift, distance = self.drift_detector.detect(features)
-        blindspots = self.blur_detector.detect_blindspots(frame)
+        blindspots = self.blur_detector.detect_blindspots(frame, model=self.model, transform=self.transform)
+
 
         if is_drift and len(blindspots) >= 5:
-            self.logger.log(frame, distance, blindspots)
+            logged = self.logger.log(frame, distance, blindspots, feature=features)
+            
+            logs = self.logger.get_recent_logs()
+            if logged and len(logs) >= 6:
+                # Check if logs are diverse enough (feature variance)
+                all_feats = [entry["features"] for entry in logs if entry["features"] is not None]
+                if len(all_feats) >= 6:
+                    stacked = torch.cat(all_feats, dim=0)
+                    diversity = torch.var(stacked, dim=0).mean().item()
+                    print(f"🧠 Drift log diversity: {diversity:.4f}")
+                    
+                    if diversity > 0.01:  # heuristic threshold
+                        new_baseline = self.updater.update_baseline_from_logs(self.logger)
+                        if new_baseline is not None:
+                            self.drift_detector.set_baseline(new_baseline)
+                            self.retrain_model_from_logs()
 
-            if len(self.logger.get_recent_logs()) >= 6 and (time.time() - self.last_retrain) > self.retrain_interval:
-                new_baseline = self.updater.update_baseline_from_logs(self.logger)
-                if new_baseline is not None:
-                    self.drift_detector.set_baseline(new_baseline)
-                    self.retrain_model_from_logs()
-                    self.last_retrain = time.time()
             
         return is_drift, distance, blindspots
     
