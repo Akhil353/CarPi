@@ -1,20 +1,24 @@
-import os
-import cv2
 import torch
 import torch.nn as nn
 import torchvision.transforms as T
-from datetime import datetime
-from torchvision.models import resnet18, ResNet18_Weights
-from collections import deque
+import torchvision.models as models
+import cv2
 from pathlib import Path
 import numpy as np
+import time
+import json
+from collections import deque
+from datetime import datetime
+
+# ─────────────────────────────────────────────────────────────
+# MODEL: CameraEffectsModel
+# ─────────────────────────────────────────────────────────────
 
 class CameraEffectsModel(nn.Module):
-    def __init__(self, num_classes=3):
+    def __init__(self, num_classes):
         super().__init__()
-        base = resnet18(weights=ResNet18_Weights.DEFAULT)
+        base = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
         self.backbone = nn.Sequential(*list(base.children())[:-1])
-        self.features = list(base.children())
         self.classifier = nn.Linear(512, num_classes)
 
     def forward(self, x):
@@ -22,104 +26,254 @@ class CameraEffectsModel(nn.Module):
         return self.classifier(feat)
 
     def extract_features(self, x):
-        with torch.no_grad():
-            return self.backbone(x).view(x.size(0), -1)
+        return self.backbone(x).view(x.size(0), -1)
 
     def extract_intermediate(self, x, layer='layer1'):
-        """
-        Extract intermediate feature map from a given ResNet block (e.g., 'layer1').
-        """
-        outputs = {}
+        modules = dict(self.backbone.named_children())
+        out = x
+        for name, block in modules.items():
+            out = block(out)
+            if name == layer:
+                return out
+        return out
 
-        def hook(module, input, output):
-            outputs['feat'] = output.detach()
+# ─────────────────────────────────────────────────────────────
+# BLUR DETECTOR
+# ─────────────────────────────────────────────────────────────
 
-        # Pick ResNet block
-        layer_map = {
-            'layer1': 4,
-            'layer2': 5,
-            'layer3': 6,
-            'layer4': 7,
+class BlurDetector:
+    def __init__(self, blur_thresh=50, brightness_thresh=50, contrast_thresh=15, edge_thresh=0.02, min_area=500):
+        self.blur_thresh = blur_thresh
+        self.brightness_thresh = brightness_thresh
+        self.contrast_thresh = contrast_thresh
+        self.edge_thresh = edge_thresh
+        self.min_area = min_area
+
+    def analyze_region(self, gray, region_mask):
+        region = gray[region_mask]
+        if region.size == 0:
+            return None, None
+
+        lap_var = cv2.Laplacian(region, cv2.CV_64F).var()
+        brightness = np.mean(region)
+        contrast = np.std(region)
+        edges = cv2.Canny(region, 50, 150)
+        edge_density = np.sum(edges > 0) / (region.size + 1e-5)
+
+        # ✅ Smart thresholds based on actual observation
+        if lap_var > 100 or edge_density > 0.05 or contrast > 30:
+            return lap_var, None  # NOT a blindspot
+
+        cause = "flat"
+        return lap_var, cause
+
+
+
+    def detect_blindspots(self, frame):
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        h, w = gray.shape
+        boxes = []
+        step_x = w // 8
+        step_y = h // 6
+
+        for y in range(0, h, step_y):
+            for x in range(0, w, step_x):
+                x_end = min(x + step_x, w)
+                y_end = min(y + step_y, h)
+                mask = np.s_[y:y_end, x:x_end]
+                lap_var, cause = self.analyze_region(gray, mask)
+                if cause:
+                    boxes.append({
+                        "bbox": (x, y, x_end, y_end),
+                        "cause": cause,
+                        "lap_var": lap_var
+                    })
+
+        return boxes
+
+# ─────────────────────────────────────────────────────────────
+# DRIFT LOGGER
+# ─────────────────────────────────────────────────────────────
+
+class DriftLogger:
+    def __init__(self, log_dir="drift_logs", cooldown=5.0, max_history=6):
+        self.log_dir = Path(log_dir)
+        self.log_dir.mkdir(parents=True, exist_ok=True)
+        self.cooldown = cooldown
+        self.last_log_time = 0
+        self.history = deque(maxlen=max_history)
+
+    def log(self, image, distance, blindspots):
+        now = time.time()
+        if now - self.last_log_time < self.cooldown:
+            return False
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename_base = f"drift_{timestamp}_d{distance:.2f}"
+        img_path = self.log_dir / f"{filename_base}.jpg"
+        meta_path = self.log_dir / f"{filename_base}.json"
+
+        cv2.imwrite(str(img_path), image)
+
+        metadata = {
+            "timestamp": timestamp,
+            "distance": distance,
+            "blindspots": blindspots
         }
-        hook_handle = self.features[layer_map[layer]].register_forward_hook(hook)
-        _ = self.backbone(x)
-        hook_handle.remove()
-        return outputs['feat']  # Shape: [B, C, H, W]
+        with open(meta_path, 'w') as f:
+            json.dump(metadata, f, indent=2)
+
+        self.history.append({
+            "img_path": str(img_path),
+            "meta_path": str(meta_path),
+            "features": None
+        })
+
+        self.last_log_time = now
+        print(f"⚠️ Logged drift to {img_path.name} with {len(blindspots)} blindspots.")
+        return True
+
+    def get_recent_logs(self):
+        return list(self.history)
+
+# ─────────────────────────────────────────────────────────────
+# BASELINE UPDATER
+# ─────────────────────────────────────────────────────────────
+
+class BaselineUpdater:
+    def __init__(self, model, device='cpu'):
+        self.model = model
+        self.device = device
+        self.transform = T.Compose([
+            T.ToPILImage(),
+            T.Resize((224, 224)),
+            T.ToTensor(),
+            T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ])
+
+    def update_baseline_from_logs(self, logger):
+        logs = logger.get_recent_logs()
+        if len(logs) < 6:
+            print(f"ℹ️ Not enough logs to update baseline ({len(logs)}/6)")
+            return None
+
+        features_list = []
+        for entry in logs:
+            img = cv2.imread(entry["img_path"])
+            if img is None:
+                continue
+            input_tensor = self.transform(img).unsqueeze(0).to(self.device)
+            with torch.no_grad():
+                feat = self.model.extract_features(input_tensor)
+                features_list.append(feat)
+
+        if not features_list:
+            print("⚠️ No valid features extracted.")
+            return None
+
+        new_baseline = torch.mean(torch.cat(features_list, dim=0), dim=0, keepdim=True)
+        print("✅ Updated baseline from recent drift logs.")
+        return new_baseline
+
+# ─────────────────────────────────────────────────────────────
+# DRIFT DETECTOR
+# ─────────────────────────────────────────────────────────────
 
 class DriftDetector:
-    def __init__(self, baseline_features, threshold=2.0, window_size=200):
-        self.baseline = baseline_features
+    def __init__(self, baseline, threshold=3.0):
+        self.baseline = baseline
         self.threshold = threshold
-        self.history = deque(maxlen=window_size)
 
-    def detect(self, features):
-        distance = torch.norm(features - self.baseline, dim=1).item()
-        self.history.append(distance)
+    def detect(self, current_features):
+        distance = torch.norm(current_features - self.baseline, dim=1).item()
         is_drift = distance > self.threshold
         return is_drift, distance
 
-    def should_log_drift(self, ratio=0.3):
-        if len(self.history) < self.history.maxlen:
-            return False
-        return sum(d > self.threshold for d in self.history) / len(self.history) > ratio
+    def set_baseline(self, new_baseline):
+        self.baseline = new_baseline
 
-class DriftLogger:
-    def __init__(self, log_dir="drift_logs"):
-        self.log_dir = Path(log_dir)
-        self.log_dir.mkdir(parents=True, exist_ok=True)
-
-    def log_event(self, image, distance):
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = self.log_dir / f"drift_{timestamp}_d{distance:.2f}.jpg"
-        cv2.imwrite(str(filename), image)
-        print(f"⚠️ Logged drift image to {filename}")
+# ─────────────────────────────────────────────────────────────
+# CAMERA MONITOR (MAIN CLASS)
+# ─────────────────────────────────────────────────────────────
 
 class CameraMonitor:
-    def __init__(self, model_path="camera_effects.pth", device=None):
-        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        checkpoint = torch.load(model_path, map_location=self.device)
-        self.model = CameraEffectsModel(num_classes=len(checkpoint["idx2label"]))
+    def __init__(self, device='cuda' if torch.cuda.is_available() else 'cpu'):
+        self.device = device
+
+        checkpoint = torch.load("camera_effects.pth", map_location=device)
+        num_classes = len(checkpoint["idx2label"])
+        self.model = CameraEffectsModel(num_classes).to(device)
         self.model.load_state_dict(checkpoint["model_state"])
-        self.model.eval().to(self.device)
+        self.model.eval()
 
         self.transform = T.Compose([
             T.ToPILImage(),
             T.Resize((224, 224)),
             T.ToTensor(),
-            T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+            T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ])
 
-        # Placeholder baseline vector (to be replaced with real feature mean)
-        self.baseline = torch.zeros((1, 512)).to(self.device)
-        self.drift_detector = DriftDetector(self.baseline)
+        self.blur_detector = BlurDetector()
         self.logger = DriftLogger()
-
-    def update_baseline(self, baseline_features):
-        self.drift_detector.baseline = baseline_features
+        self.updater = BaselineUpdater(self.model, device)
+        self.baseline = torch.zeros((1, 512)).to(device)
+        self.drift_detector = DriftDetector(self.baseline)
+        self.last_retrain = time.time()
+        self.retrain_interval = 30
 
     def process_frame(self, frame):
         img_tensor = self.transform(frame).unsqueeze(0).to(self.device)
-        features = self.model.extract_features(img_tensor)
+        with torch.no_grad():
+            features = self.model.extract_features(img_tensor)
+
         is_drift, distance = self.drift_detector.detect(features)
+        blindspots = self.blur_detector.detect_blindspots(frame)
 
-        if is_drift and self.drift_detector.should_log_drift():
-            self.logger.log_event(frame, distance)
+        if is_drift and len(blindspots) >= 5:
+            self.logger.log(frame, distance, blindspots)
 
-        return is_drift, distance
+            if len(self.logger.get_recent_logs()) >= 6 and (time.time() - self.last_retrain) > self.retrain_interval:
+                new_baseline = self.updater.update_baseline_from_logs(self.logger)
+                if new_baseline is not None:
+                    self.drift_detector.set_baseline(new_baseline)
+                    self.retrain_model_from_logs()
+                    self.last_retrain = time.time()
+            
+        return is_drift, distance, blindspots
+    
+    def retrain_model_from_logs(self, epochs=3, lr=1e-5):
+        logs = self.logger.get_recent_logs()
+        if len(logs) < 6:
+            return
 
-    def get_blindspot_map(self, frame, layer='layer1'):
-        """
-        Returns a heatmap overlay showing regions of feature-level abnormality.
-        """
-        img_tensor = self.transform(frame).unsqueeze(0).to(self.device)
-        feature_map = self.model.extract_intermediate(img_tensor, layer=layer)  # [1, C, H, W]
+        self.model.train()
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
+        loss_fn = nn.MSELoss()
 
-        activation_map = feature_map.norm(dim=1).squeeze(0).cpu().numpy()
-        activation_map -= activation_map.min()
-        activation_map /= (activation_map.max() + 1e-5)
-        activation_map = cv2.resize(activation_map, (frame.shape[1], frame.shape[0]))
+        for epoch in range(epochs):
+            total_loss = 0.0
+            count = 0
 
-        heatmap = np.uint8(255 * activation_map)
-        heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
-        overlay = cv2.addWeighted(frame, 0.6, heatmap, 0.4, 0)
-        return overlay
+            for entry in logs:
+                img = cv2.imread(entry["img_path"])
+                if img is None:
+                    continue
+
+                input_tensor = self.transform(img).unsqueeze(0).to(self.device)
+
+                pred_feat = self.model.extract_features(input_tensor)
+                target_feat = self.baseline.to(self.device)
+
+                loss = loss_fn(pred_feat, target_feat)
+
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+                total_loss += loss.item()
+                count += 1
+
+            avg_loss = total_loss / (count or 1)
+            print(f"🔁 Retrain Epoch {epoch+1}: Loss = {avg_loss:.6f}")
+
+        self.model.eval()

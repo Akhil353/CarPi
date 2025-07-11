@@ -1,24 +1,47 @@
 import cv2
-from CAM import CameraMonitor
+import numpy as np
+from WeatherSensor import WeatherSensor
 
-monitor = CameraMonitor()
+def main():
+    # Use GPU if available
+    device = 'cuda' if cv2.cuda.getCudaEnabledDeviceCount() > 0 else 'cpu'
+    weather_sensor = WeatherSensor(device=device)
 
-cap = cv2.VideoCapture(0)
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        break
+    # Open webcam (or replace with video file path)
+    cap = cv2.VideoCapture(0)
 
-    is_drift, dist = monitor.process_frame(frame)
-    print(f"Drift: {is_drift}, Distance: {dist:.2f}")
+    # Set resolution and FPS (optional)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    cap.set(cv2.CAP_PROP_FPS, 30)
 
-    if is_drift:
-        overlay = monitor.get_blindspot_map(frame)
-        cv2.imshow("Blindspot Map", overlay)
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
 
-    cv2.imshow("Live", frame)
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+        # Process frame through weather pipeline
+        corrected_frame, weather, confidence = weather_sensor.process_frame(frame)
 
-cap.release()
-cv2.destroyAllWindows()
+        # Combine original and corrected side-by-side
+        display_frame = np.hstack([frame, corrected_frame])
+
+        # Draw weather condition
+        cv2.putText(display_frame, f"Weather: {weather} ({confidence:.2f})",
+                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+        
+        cv2.putText(display_frame, "Original | Enhanced",
+                    (frame.shape[1] // 2 - 100, display_frame.shape[0] - 20),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+
+        # Show the final output
+        cv2.imshow("Weather Sensor - Original vs Enhanced", display_frame)
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+if __name__ == "__main__":
+    main()
