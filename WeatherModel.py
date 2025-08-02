@@ -141,6 +141,9 @@ class ImageDataset(Dataset):
         return foggy_image, ground_truth_image
 
 # --- Training Script ---
+# Usable datasets:
+# https://www.kaggle.com/datasets/ahmedislam0/fog-or-smog-detection-dataset?select=foggy
+# https://www.kaggle.com/datasets/dhruvagg/foggy-road-images
 def train():
     # --- Hyperparameters ---
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
