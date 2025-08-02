@@ -1,0 +1,150 @@
+{
+  "timestamp": "20250711_144442",
+  "distance": 24.738767623901367,
+  "blindspots": [
+    {
+      "bbox": [
+        0,
+        0,
+        80,
+        80
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 3.0,
+      "contrast": 5.33,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        160,
+        0,
+        240,
+        80
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 3.23,
+      "contrast": 3.58,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        320,
+        0,
+        400,
+        80
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 8.99,
+      "contrast": 3.26,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        480,
+        0,
+        560,
+        80
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 2.94,
+      "contrast": 5.1,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        560,
+        0,
+        640,
+        80
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 3.3,
+      "contrast": 4.75,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        480,
+        80,
+        560,
+        160
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 4.92,
+      "contrast": 8.39,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        560,
+        80,
+        640,
+        160
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 4.8,
+      "contrast": 7.82,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        480,
+        160,
+        560,
+        240
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 23.92,
+      "contrast": 14.09,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        560,
+        240,
+        640,
+        320
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 5.87,
+      "contrast": 14.2,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        320,
+        320,
+        400,
+        400
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 6.45,
+      "contrast": 2.48,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        80,
+        400,
+        160,
+        480
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 3.0,
+      "contrast": 1.89,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        240,
+        400,
+        320,
+        480
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 6.46,
+      "contrast": 2.22,
+      "edge_density": 0.0
+    }
+  ]
+}
