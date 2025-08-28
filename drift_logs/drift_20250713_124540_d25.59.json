@@ -1,0 +1,330 @@
+{
+  "timestamp": "20250713_124540",
+  "distance": 25.5927791595459,
+  "blindspots": [
+    {
+      "bbox": [
+        0,
+        0,
+        80,
+        80
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 0.0,
+      "contrast": 0.0,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        80,
+        0,
+        160,
+        80
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 0.0,
+      "contrast": 0.0,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        160,
+        0,
+        240,
+        80
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 0.0,
+      "contrast": 0.0,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        240,
+        0,
+        320,
+        80
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 0.0,
+      "contrast": 0.0,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        320,
+        0,
+        400,
+        80
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 0.0,
+      "contrast": 0.0,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        400,
+        0,
+        480,
+        80
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 0.0,
+      "contrast": 0.0,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        480,
+        0,
+        560,
+        80
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 0.0,
+      "contrast": 0.0,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        560,
+        0,
+        640,
+        80
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 0.0,
+      "contrast": 0.0,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        0,
+        80,
+        80,
+        160
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 0.0,
+      "contrast": 0.0,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        80,
+        80,
+        160,
+        160
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 2.37,
+      "contrast": 2.16,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        160,
+        80,
+        240,
+        160
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 11.07,
+      "contrast": 8.15,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        240,
+        80,
+        320,
+        160
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 0.0,
+      "contrast": 0.0,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        320,
+        80,
+        400,
+        160
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 0.0,
+      "contrast": 0.0,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        400,
+        80,
+        480,
+        160
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 0.0,
+      "contrast": 0.0,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        480,
+        80,
+        560,
+        160
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 0.0,
+      "contrast": 0.0,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        560,
+        80,
+        640,
+        160
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 0.0,
+      "contrast": 0.0,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        0,
+        160,
+        80,
+        240
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 0.0,
+      "contrast": 0.0,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        560,
+        160,
+        640,
+        240
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 0.0,
+      "contrast": 0.0,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        0,
+        240,
+        80,
+        320
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 0.0,
+      "contrast": 0.0,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        560,
+        240,
+        640,
+        320
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 0.0,
+      "contrast": 0.0,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        0,
+        320,
+        80,
+        400
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 0.0,
+      "contrast": 0.0,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        80,
+        320,
+        160,
+        400
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 2.64,
+      "contrast": 2.56,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        0,
+        400,
+        80,
+        480
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 0.0,
+      "contrast": 0.0,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        80,
+        400,
+        160,
+        480
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 0.0,
+      "contrast": 0.0,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        160,
+        400,
+        240,
+        480
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 0.0,
+      "contrast": 0.0,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        240,
+        400,
+        320,
+        480
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 0.0,
+      "contrast": 0.0,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        320,
+        400,
+        400,
+        480
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 0.0,
+      "contrast": 0.0,
+      "edge_density": 0.0
+    }
+  ]
+}
