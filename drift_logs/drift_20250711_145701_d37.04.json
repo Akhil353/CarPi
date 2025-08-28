@@ -1,0 +1,66 @@
+{
+  "timestamp": "20250711_145701",
+  "distance": 37.04466247558594,
+  "blindspots": [
+    {
+      "bbox": [
+        480,
+        160,
+        560,
+        240
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 11.12,
+      "contrast": 8.34,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        160,
+        320,
+        240,
+        400
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 7.05,
+      "contrast": 9.08,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        240,
+        320,
+        320,
+        400
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 8.38,
+      "contrast": 10.29,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        160,
+        400,
+        240,
+        480
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 9.02,
+      "contrast": 10.03,
+      "edge_density": 0.0
+    },
+    {
+      "bbox": [
+        240,
+        400,
+        320,
+        480
+      ],
+      "cause": "blurry+confused",
+      "lap_var": 9.68,
+      "contrast": 9.04,
+      "edge_density": 0.0
+    }
+  ]
+}
