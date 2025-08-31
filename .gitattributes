@@ -1,7 +1,16 @@
 generator.pth filter=lfs diff=lfs merge=lfs -text
+*.gitignore filter=lfs diff=lfs merge=lfs -text
 *.py filter=lfs diff=lfs merge=lfs -text
+/CamTest filter=lfs diff=lfs merge=lfs -text
+*.pyc filter=lfs diff=lfs merge=lfs -text
+*.torchscript filter=lfs diff=lfs merge=lfs -text
+*.jpg filter=lfs diff=lfs merge=lfs -text
+*.pth filter=lfs diff=lfs merge=lfs -text
+*.avi filter=lfs diff=lfs merge=lfs -text
+*.json filter=lfs diff=lfs merge=lfs -text
 *.ipynb filter=lfs diff=lfs merge=lfs -text
 *.txt filter=lfs diff=lfs merge=lfs -text
+*.pt filter=lfs diff=lfs merge=lfs -text
 *.ps1 filter=lfs diff=lfs merge=lfs -text
 /venv/bin/activate filter=lfs diff=lfs merge=lfs -text
 *.csh filter=lfs diff=lfs merge=lfs -text
@@ -9,8 +18,6 @@ generator.pth filter=lfs diff=lfs merge=lfs -text
 /venv/bin/pip filter=lfs diff=lfs merge=lfs -text
 /venv/bin/pip3 filter=lfs diff=lfs merge=lfs -text
 *.11 filter=lfs diff=lfs merge=lfs -text
-*.pyc filter=lfs diff=lfs merge=lfs -text
-*.pth filter=lfs diff=lfs merge=lfs -text
 /venv/lib/python3.11/site-packages/pip-23.2.1.dist-info/INSTALLER filter=lfs diff=lfs merge=lfs -text
 /venv/lib/python3.11/site-packages/pip-23.2.1.dist-info/METADATA filter=lfs diff=lfs merge=lfs -text
 /venv/lib/python3.11/site-packages/pip-23.2.1.dist-info/RECORD filter=lfs diff=lfs merge=lfs -text
@@ -28,7 +35,6 @@ generator.pth filter=lfs diff=lfs merge=lfs -text
 *.xml filter=lfs diff=lfs merge=lfs -text
 *.tmpl filter=lfs diff=lfs merge=lfs -text
 *.cfg filter=lfs diff=lfs merge=lfs -text
-*.pt filter=lfs diff=lfs merge=lfs -text
 /myenv/bin/activate filter=lfs diff=lfs merge=lfs -text
 /myenv/bin/pip filter=lfs diff=lfs merge=lfs -text
 /myenv/bin/pip3 filter=lfs diff=lfs merge=lfs -text
@@ -43,9 +49,3 @@ generator.pth filter=lfs diff=lfs merge=lfs -text
 /myenv/lib/python3.11/site-packages/setuptools-66.1.1.dist-info/RECORD filter=lfs diff=lfs merge=lfs -text
 /myenv/lib/python3.11/site-packages/setuptools-66.1.1.dist-info/REQUESTED filter=lfs diff=lfs merge=lfs -text
 /myenv/lib/python3.11/site-packages/setuptools-66.1.1.dist-info/WHEEL filter=lfs diff=lfs merge=lfs -text
-*.avi filter=lfs diff=lfs merge=lfs -text
-*.gitignore filter=lfs diff=lfs merge=lfs -text
-*.torchscript filter=lfs diff=lfs merge=lfs -text
-*.jpg filter=lfs diff=lfs merge=lfs -text
-/CamTest filter=lfs diff=lfs merge=lfs -text
-*.json filter=lfs diff=lfs merge=lfs -text
